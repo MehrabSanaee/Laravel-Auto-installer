@@ -43,8 +43,8 @@ add_php_repo() {
 }
 
 select_php_version() {
-  local versions=("8.3" "8.2" "8.1")
-  echo -e "${BLUE}Available PHP versions:${NC}"
+  local versions=("8.3" "8.2" "8.1" "8.0" "7.4")
+  echo -e "${BLUE}Available PHP versions:${BLUE}"
   for i in "${!versions[@]}"; do echo "$((i+1))) PHP ${versions[$i]}"; done
   read -p "Select PHP version [1]: " idx
   idx="${idx:-1}"
