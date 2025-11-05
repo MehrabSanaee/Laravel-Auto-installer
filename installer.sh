@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # ---------------------------------------------------------
-# Laravel Git Installer (Full Version with SSL)
+# Laravel Git Installer (No user restrictions)
 # Ubuntu 20.04 / 22.04 — Nginx, PHP, MySQL, Composer, Certbot
-# Created by M.cloner | Extended by ChatGPT
+# Based on original installer.sh
 # ---------------------------------------------------------
 
 # ========== COLORS ==========
@@ -20,12 +20,7 @@ show_logo() {
    / /\ \| | | | __/ _ \    \ \/  \/ / _ \ '_ \   \___ \ / _ \ '__\ \ / / _ \ '__|
   / ____ \ |_| | || (_) |    \  /\  /  __/ |_) |  ____) |  __/ |   \ V /  __/ |
  /_/    \_\__,_|\__\___/      \/  \/ \___|_.__/  |_____/ \___|_|    \_/ \___|_|
-
-                                                                                
-  Laravel Git Project Auto Installer
-  Ubuntu 20.04 / 22.04 (with SSL)
-  created by M.cloner + ChatGPT
-
+  Laravel Git Project Auto Installer (root mode)
 EOF
   echo -e "${NC}"
 }
@@ -42,39 +37,10 @@ require_root() {
   fi
 }
 
-get_interactive_user() {
-  # if run in sudo and user exist
-  if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
-    echo "$SUDO_USER"
-  else
-    echo -e "\n${GREEN}=============="
-    echo "Data entry required"
-    echo -e "==============${NC}\n"
-
-    # Show users for select
-    local possible_users
-    possible_users=$(awk -F: '($3>=1000)&&($1!="nobody"){print $1}' /etc/passwd)
-
-    if [[ -n "$possible_users" ]]; then
-      echo "Available users:"
-      echo "$possible_users"
-      read -p "Enter your Linux username (or press Enter for 'root'): " user
-      user="${user:-root}"
-    else
-      # if just root user exist
-      user="root"
-    fi
-
-    echo "$user"
-  fi
-}
-
 ask() {
-   # Show alert before user input
-        echo -e "\n${GREEN}=============="
-        echo "Data entry required"
-        echo -e "==============${NC}\n"
-
+  echo -e "\n${GREEN}=============="
+  echo "Data entry required"
+  echo -e "==============${NC}\n"
   local prompt="$1" default="$2" input
   read -p "$prompt [$default]: " input
   echo "${input:-$default}"
@@ -104,10 +70,9 @@ select_php_version() {
   local versions=("8.3" "8.2" "8.1" "8.0")
   echo -e "${BLUE}Available PHP versions:${NC}"
   for i in "${!versions[@]}"; do echo "$((i+1))) PHP ${versions[$i]}"; done
-   # Show alert before user input
-        echo -e "\n${GREEN}=============="
-        echo "Data entry required"
-        echo -e "==============${NC}\n"
+  echo -e "\n${GREEN}=============="
+  echo "Data entry required"
+  echo -e "==============${NC}\n"
   read -p "Select PHP version [1]: " idx
   idx="${idx:-1}"
   PHP_VERSION="${versions[$((idx-1))]}"
@@ -126,20 +91,21 @@ install_composer() {
     log "Installing Composer..."
     curl -sS https://getcomposer.org/installer -o composer-setup.php
     php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+    rm -f composer-setup.php
   fi
   log "$(composer --version)"
 }
 
 # ========== NGINX + MYSQL ==========
 install_nginx_mysql() {
-  apt-get install -y nginx mysql-server
+  apt-get install -y nginx mysql-server git
   systemctl enable nginx mysql
   systemctl start nginx mysql
 }
 
 # ========== DATABASE ==========
 create_database() {
-  if [[ "$NEED_DB" =~ ^[Yy]$ ]]; then
+  if [[ "${NEED_DB:-n}" =~ ^[Yy]$ ]]; then
     mysql <<SQL
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
@@ -153,21 +119,26 @@ SQL
 clone_project() {
   PROJECT_DIR="/var/www/${PROJECT_NAME}"
   mkdir -p "$PROJECT_DIR"
-  chown -R "$USER_NAME":"$USER_NAME" "$PROJECT_DIR"
   cd "$PROJECT_DIR"
-  sudo -u "$USER_NAME" git clone -b "$GIT_BRANCH" "$GIT_REPO" . || sudo -u "$USER_NAME" git clone "$GIT_REPO" .
-  sudo -u "$USER_NAME" composer install --no-interaction --prefer-dist || true
-  [ -f ".env.example" ] && sudo -u "$USER_NAME" cp .env.example .env
+  # Support both branch and default clone; run as root (no sudo -u)
+  if [[ -n "${GIT_BRANCH:-}" ]]; then
+    git clone -b "${GIT_BRANCH}" "${GIT_REPO}" . || git clone "${GIT_REPO}" .
+  else
+    git clone "${GIT_REPO}" .
+  fi
+  composer install --no-interaction --prefer-dist || true
+  [ -f ".env.example" ] && cp .env.example .env
 }
 
 configure_env() {
   cd "$PROJECT_DIR"
-  sudo -u "$USER_NAME" bash -c "sed -i 's|APP_URL=.*|APP_URL=https://${DOMAIN_NAME}|' .env || echo 'APP_URL=https://${DOMAIN_NAME}' >> .env"
-  sudo -u "$USER_NAME" bash -c "sed -i 's|DB_DATABASE=.*|DB_DATABASE=${DB_NAME}|' .env || echo 'DB_DATABASE=${DB_NAME}' >> .env"
-  sudo -u "$USER_NAME" bash -c "sed -i 's|DB_USERNAME=.*|DB_USERNAME=${DB_USER}|' .env || echo 'DB_USERNAME=${DB_USER}' >> .env"
-  sudo -u "$USER_NAME" bash -c "sed -i 's|DB_PASSWORD=.*|DB_PASSWORD=${DB_PASS}|' .env || echo 'DB_PASSWORD=${DB_PASS}' >> .env"
-  sudo -u "$USER_NAME" php artisan key:generate || true
-  sudo -u "$USER_NAME" php artisan config:cache || true
+  sed -i "s|APP_URL=.*|APP_URL=https://${DOMAIN_NAME}|" .env || echo "APP_URL=https://${DOMAIN_NAME}" >> .env
+  sed -i "s|DB_DATABASE=.*|DB_DATABASE=${DB_NAME}|" .env || echo "DB_DATABASE=${DB_NAME}" >> .env
+  sed -i "s|DB_USERNAME=.*|DB_USERNAME=${DB_USER}|" .env || echo "DB_USERNAME=${DB_USER}" >> .env
+  sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=${DB_PASS}|" .env || echo "DB_PASSWORD=${DB_PASS}" >> .env
+  # run artisan commands as root (or you can switch to www-data if preferred)
+  php artisan key:generate || true
+  php artisan config:cache || true
 }
 
 # ========== NGINX ==========
@@ -201,8 +172,9 @@ EOF
 
 # ========== PERMISSIONS ==========
 set_permissions() {
-  chown -R www-data:"$USER_NAME" "$PROJECT_DIR"
-  chmod -R 775 "$PROJECT_DIR/storage" "$PROJECT_DIR/bootstrap/cache"
+  # Make web files owned by www-data (webserver) and group www-data
+  chown -R www-data:www-data "$PROJECT_DIR"
+  chmod -R 775 "$PROJECT_DIR/storage" "$PROJECT_DIR/bootstrap/cache" || true
 }
 
 # ========== SSL ==========
@@ -228,7 +200,8 @@ main() {
   echo "Data entry required"
   echo -e "==============${NC}\n"
 
-  USER_NAME=$(get_interactive_user)
+  # No user selection — run everything as root, later files owned by www-data
+  USER_NAME="root"
 
   echo -e "\n${YELLOW}Choose installation method:${NC}"
   echo "1) Fresh Laravel installation"
@@ -256,7 +229,7 @@ main() {
     cd "$PROJECT_DIR"
 
     log "Creating new Laravel project..."
-    sudo -u "$USER_NAME" composer create-project laravel/laravel . || true
+    composer create-project laravel/laravel . || true
 
   else
     GIT_REPO=$(ask "Git repository URL" "")
