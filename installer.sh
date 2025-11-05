@@ -12,7 +12,7 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC
 
 # ========== LOGO ==========
 show_logo() {
-  echo -e "${GREEN}"
+  echo -e "${BLUE}"
   cat <<'EOF'
                 _         __          __  _        _____
      /\        | |        \ \        / / | |      / ____|
@@ -20,7 +20,7 @@ show_logo() {
    / /\ \| | | | __/ _ \    \ \/  \/ / _ \ '_ \   \___ \ / _ \ '__\ \ / / _ \ '__|
   / ____ \ |_| | || (_) |    \  /\  /  __/ |_) |  ____) |  __/ |   \ V /  __/ |
  /_/    \_\__,_|\__\___/      \/  \/ \___|_.__/  |_____/ \___|_|    \_/ \___|_|
-  Laravel Git Project Auto Installer (root mode)
+  Laravel Project Auto Installer (root mode)
 EOF
   echo -e "${NC}"
 }
@@ -182,6 +182,62 @@ install_ssl() {
   fi
 }
 
+# ========== PHPMYADMIN Install ==========
+install_phpmyadmin() {
+  log "Installing phpMyAdmin..."
+  apt-get install -y phpmyadmin php${PHP_VERSION}-mbstring php${PHP_VERSION}-zip php${PHP_VERSION}-gd php${PHP_VERSION}-xml php${PHP_VERSION}-curl
+
+  PHPMYADMIN_DIR="/usr/share/phpmyadmin"
+  if [[ ! -d "$PHPMYADMIN_DIR" ]]; then
+    log "phpMyAdmin directory not found, creating symlink..."
+    ln -s /usr/share/phpmyadmin /var/www/phpmyadmin
+    PHPMYADMIN_DIR="/var/www/phpmyadmin"
+  fi
+
+  # تنظیم دامنه phpMyAdmin
+  NGINX_PHPMYADMIN="/etc/nginx/sites-available/phpmyadmin.conf"
+  cat > "$NGINX_PHPMYADMIN" <<EOF
+server {
+    listen 80;
+    server_name ${PHPMYADMIN_DOMAIN};
+    root ${PHPMYADMIN_DIR};
+
+    index index.php index.html;
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php\$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+
+    auth_basic "Restricted Area";
+    auth_basic_user_file /etc/nginx/.phpmyadmin_htpasswd;
+}
+EOF
+
+  # ایجاد فایل رمز برای ورود
+  log "Creating phpMyAdmin login credentials..."
+  apt-get install -y apache2-utils >/dev/null 2>&1
+  htpasswd -b -c /etc/nginx/.phpmyadmin_htpasswd "${PHPMYADMIN_USER}" "${PHPMYADMIN_PASS}"
+
+  ln -sf "$NGINX_PHPMYADMIN" /etc/nginx/sites-enabled/
+  nginx -t && systemctl reload nginx
+
+  # SSL خودکار برای دامنه phpMyAdmin
+  if [[ "$PHPMYADMIN_DOMAIN" != "localhost" ]]; then
+    log "Obtaining SSL for phpMyAdmin domain..."
+    certbot --nginx -d "$PHPMYADMIN_DOMAIN" --non-interactive --agree-tos -m "admin@${PHPMYADMIN_DOMAIN}" --redirect || warn "SSL setup failed for phpMyAdmin."
+  fi
+
+  log "✅ phpMyAdmin installed and accessible at: https://${PHPMYADMIN_DOMAIN}"
+}
+
 # ========== MAIN ==========
 main() {
   show_logo
@@ -244,11 +300,23 @@ main() {
   create_nginx_conf
   set_permissions
 
-  if [[ "$DOMAIN_NAME" != "localhost" ]]; then
+ if [[ "$DOMAIN_NAME" != "localhost" ]]; then
+    log "Auto-installing SSL certificate for ${DOMAIN_NAME}..."
     install_ssl
   else
     warn "Skipping SSL (localhost detected)"
   fi
+
+    # ========== PHPMYADMIN INSTALL ==========
+    INSTALL_PHPMYADMIN=$(ask "Do you want to install phpMyAdmin? (y/n)" "y")
+    if [[ "$INSTALL_PHPMYADMIN" =~ ^[Yy]$ ]]; then
+      PHPMYADMIN_DOMAIN=$(ask "Enter phpMyAdmin domain (e.g. pma.example.com)" "pma.${DOMAIN_NAME}")
+      PHPMYADMIN_USER=$(ask "phpMyAdmin username for login (basic auth)" "admin")
+      PHPMYADMIN_PASS=$(ask "phpMyAdmin password" "ChangeMe123!")
+      install_phpmyadmin
+    else
+      warn "phpMyAdmin installation skipped."
+    fi
 
   log "✅ Laravel installation complete."
   echo -e "${GREEN}Visit: https://${DOMAIN_NAME}${NC}"
