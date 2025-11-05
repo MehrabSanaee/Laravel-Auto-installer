@@ -38,9 +38,6 @@ require_root() {
 }
 
 ask() {
-  echo -e "\n${GREEN}=============="
-  echo "Data entry required"
-  echo -e "==============${NC}\n"
   local prompt="$1" default="$2" input
   read -p "$prompt [$default]: " input
   echo "${input:-$default}"
@@ -70,9 +67,6 @@ select_php_version() {
   local versions=("8.3" "8.2" "8.1" "8.0")
   echo -e "${BLUE}Available PHP versions:${NC}"
   for i in "${!versions[@]}"; do echo "$((i+1))) PHP ${versions[$i]}"; done
-  echo -e "\n${GREEN}=============="
-  echo "Data entry required"
-  echo -e "==============${NC}\n"
   read -p "Select PHP version [1]: " idx
   idx="${idx:-1}"
   PHP_VERSION="${versions[$((idx-1))]}"
@@ -195,10 +189,6 @@ main() {
   detect_os
   add_php_repo
   select_php_version
-
-  echo -e "\n${GREEN}=============="
-  echo "Data entry required"
-  echo -e "==============${NC}\n"
 
   # No user selection — run everything as root, later files owned by www-data
   USER_NAME="root"
