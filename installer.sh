@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ---------------------------------------------------------
-# Laravel Auto Installer (Full Root Version)
-# Includes: Laravel, PHP, Nginx, MySQL, Composer, SSL, phpMyAdmin
-# Compatible: Ubuntu 20.04 / 22.04
-# ---------------------------------------------------------
+# =========================================================
+# Laravel Auto Installer (Optimized Version)
+# Includes: Optional MySQL, Optional phpMyAdmin, SSL, Nginx
+# With: Input validation, logging, error handling & rollback
+# =========================================================
 
-# ========== COLORS ==========
+# ---------- Colors ----------
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
-# ========== HELPERS ==========
-log()    { echo -e "${GREEN}[INFO]${NC} $1"; }
-warn()   { echo -e "${YELLOW}[WARN]${NC} $1"; }
+# ---------- Logging ----------
+LOG_FILE="/var/log/laravel-installer.log"
+mkdir -p /var/log
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+# ---------- Helpers ----------
+log()  { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+err()  { echo -e "${RED}[ERROR]${NC} $1"; }
 
 require_root() {
   if [[ $EUID -ne 0 ]]; then
-    warn "Script needs root. Re-running with sudo..."
-    exec sudo "$0" "$@"
+    err "Run as root."
+    exit 1
   fi
 }
 
@@ -27,95 +33,125 @@ ask() {
   echo "${input:-$default}"
 }
 
-# ========== OS DETECTION ==========
+validate_not_empty() {
+  if [[ -z "$1" ]]; then
+    err "Invalid empty input."
+    exit 1
+  fi
+}
+
+rollback() {
+  warn "Rollback executed."
+
+  [[ -n "${PROJECT_DIR:-}" ]] && rm -rf "$PROJECT_DIR" || true
+  rm -f "/etc/nginx/sites-enabled/${PROJECT_NAME}.conf" || true
+  rm -f "/etc/nginx/sites-available/${PROJECT_NAME}.conf" || true
+
+  warn "Rollback completed."
+}
+trap rollback ERR
+
+# ---------- OS ----------
 detect_os() {
   DISTRO=$(awk -F= '/^NAME/{print $2}' /etc/os-release | tr -d '"')
   RELEASE=$(awk -F= '/^VERSION_ID/{print $2}' /etc/os-release | tr -d '"')
-  log "Detected OS: ${DISTRO} ${RELEASE}"
+  log "Detected OS: $DISTRO $RELEASE"
 }
 
-# ========== PHP + COMPOSER + NGINX + MYSQL ==========
+# ---------- PHP ----------
 add_php_repo() {
   apt-get update -y
   apt-get install -y software-properties-common ca-certificates lsb-release apt-transport-https curl gnupg
-  add-apt-repository -y ppa:ondrej/php || true
+  add-apt-repository -y ppa:ondrej/php
   apt-get update -y
 }
 
-select_php_version() {
-  local versions=("8.3" "8.2" "8.1" "8.0" "7.4")
-  echo -e "${BLUE}Available PHP versions:${BLUE}"
+select_php() {
+  local versions=("8.3" "8.2" "8.1" "8.0")
+  echo "Available PHP versions:"
   for i in "${!versions[@]}"; do echo "$((i+1))) PHP ${versions[$i]}"; done
+
   read -p "Select PHP version [1]: " idx
   idx="${idx:-1}"
   PHP_VERSION="${versions[$((idx-1))]}"
-  log "Selected PHP $PHP_VERSION"
+  validate_not_empty "$PHP_VERSION"
 }
 
 install_php_stack() {
-  local pkgs=(php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-mysql php${PHP_VERSION}-sqlite3 php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip php${PHP_VERSION}-gd php${PHP_VERSION}-intl php${PHP_VERSION}-bcmath nginx mysql-server git unzip expect)
+  local pkgs=(php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip php${PHP_VERSION}-gd php${PHP_VERSION}-intl php${PHP_VERSION}-bcmath nginx git unzip)
   DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs[@]}"
-  systemctl enable php${PHP_VERSION}-fpm nginx mysql
-  systemctl restart php${PHP_VERSION}-fpm nginx mysql
+  systemctl enable php${PHP_VERSION}-fpm nginx
 }
 
+# ---------- Composer ----------
 install_composer() {
-  if ! command -v composer &>/dev/null; then
-    log "Installing Composer..."
+  if ! command -v composer >/dev/null; then
     curl -sS https://getcomposer.org/installer -o composer-setup.php
     php composer-setup.php --install-dir=/usr/local/bin --filename=composer
     rm -f composer-setup.php
   fi
-  log "$(composer --version)"
 }
 
-# ========== DATABASE ==========
-create_database() {
-  if [[ "${NEED_DB:-y}" =~ ^[Yy]$ ]]; then
-    mysql <<SQL
+# ---------- MySQL ----------
+install_mysql() {
+  DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server
+  systemctl enable mysql
+}
+
+create_db() {
+  mysql <<SQL
 CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
 FLUSH PRIVILEGES;
 SQL
-  fi
 }
 
-# ========== PROJECT ==========
+# ---------- Project ----------
 clone_project() {
   PROJECT_DIR="/var/www/${PROJECT_NAME}"
   mkdir -p "$PROJECT_DIR"
   cd "$PROJECT_DIR"
-  if [[ -n "${GIT_BRANCH:-}" ]]; then
-    git clone -b "${GIT_BRANCH}" "${GIT_REPO}" . || git clone "${GIT_REPO}" .
-  else
-    git clone "${GIT_REPO}" .
+
+  git clone -b "$GIT_BRANCH" "$GIT_REPO" . || {
+    log "Branch not found. Cloning default branch..."
+    git clone "$GIT_REPO" .
+  }
+
+  if ! composer install --no-interaction --prefer-dist; then
+    err "Composer installation failed."
+    exit 1
   fi
-  composer install --no-interaction --prefer-dist || true
-  [ -f ".env.example" ] && cp .env.example .env
+
+  cp .env.example .env || true
+}
+
+create_new_laravel() {
+  PROJECT_DIR="/var/www/${PROJECT_NAME}"
+  mkdir -p "$PROJECT_DIR"
+  cd "$PROJECT_DIR"
+
+  composer create-project laravel/laravel . --no-interaction
 }
 
 configure_env() {
   cd "$PROJECT_DIR"
-  sed -i "s|APP_URL=.*|APP_URL=https://${DOMAIN_NAME}|" .env || echo "APP_URL=https://${DOMAIN_NAME}" >> .env
-  sed -i "s|DB_CONNECTION=.*|DB_CONNECTION=mysql|" .env || echo "DB_CONNECTION=mysql" >> .env
-  sed -i "s|DB_HOST=.*|DB_HOST=127.0.0.1|" .env || echo "DB_HOST=127.0.0.1" >> .env
-  sed -i "s|DB_PORT=.*|DB_PORT=3306|" .env || echo "DB_PORT=3306" >> .env
-  sed -i "s|DB_DATABASE=.*|DB_DATABASE=${DB_NAME}|" .env || echo "DB_DATABASE=${DB_NAME}" >> .env
-  sed -i "s|DB_USERNAME=.*|DB_USERNAME=${DB_USER}|" .env || echo "DB_USERNAME=${DB_USER}" >> .env
-  sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=${DB_PASS}|" .env || echo "DB_PASSWORD=${DB_PASS}" >> .env
 
-  php artisan key:generate || true
-  php artisan config:cache || true
+  sed -i "s|APP_URL=.*|APP_URL=https://${DOMAIN_NAME}|" .env
+  sed -i "s|DB_CONNECTION=.*|DB_CONNECTION=mysql|" .env
+  sed -i "s|DB_DATABASE=.*|DB_DATABASE=${DB_NAME}|" .env
+  sed -i "s|DB_USERNAME=.*|DB_USERNAME=${DB_USER}|" .env
+  sed -i "s|DB_PASSWORD=.*|DB_PASSWORD=${DB_PASS}|" .env
+
+  php artisan key:generate
+  php artisan config:cache
 }
 
-run_laravel_migrate() {
-  cd "$PROJECT_DIR"
-  log "Running Laravel migrations..."
-  php artisan migrate --force || warn "Migration failed — check DB connection or permissions."
+run_migrations() {
+  php artisan migrate --force || warn "Migration warning."
 }
 
-# ========== NGINX ==========
+# ---------- Nginx ----------
 create_nginx_conf() {
   NGINX_FILE="/etc/nginx/sites-available/${PROJECT_NAME}.conf"
   cat >"$NGINX_FILE" <<EOF
@@ -133,49 +169,51 @@ server {
         include snippets/fastcgi-php.conf;
         fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
     }
-
-    location ~ /\.ht {
-        deny all;
-    }
 }
 EOF
+
   ln -sf "$NGINX_FILE" /etc/nginx/sites-enabled/
-  rm -f /etc/nginx/sites-enabled/default || true
-  nginx -t && systemctl reload nginx
+
+  if ! nginx -t; then
+    err "Nginx config invalid."
+    exit 1
+  fi
+
+  systemctl reload nginx
 }
 
-# ========== PERMISSIONS ==========
+# ---------- Permissions ----------
 fix_permissions() {
-  log "Fixing permissions..."
   chown -R www-data:www-data "$PROJECT_DIR"
-  chmod -R 775 "$PROJECT_DIR/storage" "$PROJECT_DIR/bootstrap/cache"
+
+  find "$PROJECT_DIR/storage" -type d -exec chmod 755 {} \;
+  find "$PROJECT_DIR/storage" -type f -exec chmod 644 {} \;
+
+  find "$PROJECT_DIR/bootstrap/cache" -type d -exec chmod 755 {} \;
+  find "$PROJECT_DIR/bootstrap/cache" -type f -exec chmod 644 {} \;
 }
 
-# ========== SSL ==========
+# ---------- SSL ----------
 install_ssl() {
   apt-get install -y certbot python3-certbot-nginx
   certbot --nginx -d "$DOMAIN_NAME" --non-interactive --agree-tos -m "admin@${DOMAIN_NAME}" --redirect || true
 }
 
-# ========== PHPMYADMIN ==========
+# ---------- phpMyAdmin ----------
 install_phpmyadmin() {
-  PHPMYADMIN_DOMAIN=$(ask "phpMyAdmin domain (e.g. pma.example.com)" "pma.${DOMAIN_NAME}")
-  PHPMYADMIN_PASS=$(ask "phpMyAdmin MySQL password" "${DB_PASS}")
+  apt-get install -y php${PHP_VERSION}-mysql phpmyadmin
 
-  DEBIAN_FRONTEND=noninteractive apt-get install -y phpmyadmin
+  ln -sf /usr/share/phpmyadmin /var/www/phpmyadmin
 
-  ln -s /usr/share/phpmyadmin /var/www/phpmyadmin || true
+  PMA_DOMAIN=$(ask "phpMyAdmin domain" "pma.${DOMAIN_NAME}")
 
   cat >/etc/nginx/sites-available/phpmyadmin.conf <<EOF
 server {
     listen 80;
-    server_name ${PHPMYADMIN_DOMAIN};
+    server_name $PMA_DOMAIN;
     root /var/www/phpmyadmin;
 
     index index.php index.html;
-    location / {
-        index index.php index.html;
-    }
 
     location ~ \.php\$ {
         include snippets/fastcgi-php.conf;
@@ -183,58 +221,63 @@ server {
     }
 }
 EOF
+
   ln -sf /etc/nginx/sites-available/phpmyadmin.conf /etc/nginx/sites-enabled/
   nginx -t && systemctl reload nginx
 
-  certbot --nginx -d "$PHPMYADMIN_DOMAIN" --non-interactive --agree-tos -m "admin@${PHPMYADMIN_DOMAIN}" --redirect || true
-  log "phpMyAdmin available at: https://${PHPMYADMIN_DOMAIN}"
+  certbot --nginx -d "$PMA_DOMAIN" --non-interactive --agree-tos -m "admin@${PMA_DOMAIN}" --redirect || true
 }
 
-# ========== MAIN ==========
+# =========================================================
+# MAIN
+# =========================================================
 main() {
   require_root
   detect_os
   add_php_repo
-  select_php_version
+  select_php
   install_php_stack
   install_composer
 
-  echo -e "${YELLOW}Choose installation method:${NC}"
-  echo "1) Fresh Laravel installation"
-  echo "2) Use GitHub repository"
-  read -p "Select [1]: " INSTALL_METHOD
-  INSTALL_METHOD="${INSTALL_METHOD:-1}"
+  INSTALL_METHOD=$(ask "1) New Laravel  2) Git repo" "1")
 
   PROJECT_NAME=$(ask "Project folder name" "laravel-app")
-  DOMAIN_NAME=$(ask "Domain name" "example.com")
-  NEED_DB=$(ask "Does project use a database? (y/n)" "y")
-  DB_NAME=$(ask "Database name" "laravel_db")
-  DB_USER=$(ask "Database user" "laravel_user")
-  DB_PASS=$(ask "Database password" "ChangeMe123!")
+  validate_not_empty "$PROJECT_NAME"
 
-  create_database
+  DOMAIN_NAME=$(ask "Domain name" "example.com")
+  validate_not_empty "$DOMAIN_NAME"
+
+  USE_DB=$(ask "Use MySQL database? (y/n)" "y")
+
+  if [[ "$USE_DB" =~ ^[Yy]$ ]]; then
+    install_mysql
+    DB_NAME=$(ask "DB name" "laravel_db")
+    DB_USER=$(ask "DB user" "laravel_user")
+    DB_PASS=$(ask "DB password" "ChangeMe123!")
+    create_db
+  fi
 
   if [[ "$INSTALL_METHOD" == "1" ]]; then
-    PROJECT_DIR="/var/www/${PROJECT_NAME}"
-    mkdir -p "$PROJECT_DIR"
-    cd "$PROJECT_DIR"
-    log "Creating new Laravel project..."
-    composer create-project laravel/laravel . || true
+    create_new_laravel
   else
     GIT_REPO=$(ask "Git repository URL" "")
+    validate_not_empty "$GIT_REPO"
+
     GIT_BRANCH=$(ask "Git branch" "main")
     clone_project
   fi
 
   configure_env
-  run_laravel_migrate
+  run_migrations
   create_nginx_conf
   fix_permissions
   install_ssl
-  install_phpmyadmin
 
-  log "✅ Laravel installation complete."
-  echo -e "${GREEN}Visit: https://${DOMAIN_NAME}${NC}"
+  INSTALL_PMA=$(ask "Install phpMyAdmin? (y/n)" "n")
+  [[ "$INSTALL_PMA" =~ ^[Yy]$ ]] && install_phpmyadmin
+
+  log "Laravel installation completed."
+  echo -e "${GREEN}URL: https://${DOMAIN_NAME}${NC}"
 }
 
 main "$@"
