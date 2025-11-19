@@ -1,8 +1,8 @@
 # Laravel VPS Auto Installer
 
 A lightweight, opinionated deployment script built for **my personal
-Laravel projects**, especially small bots, micro-tools, and private
-services.
+Laravel projects**, especially small tools, micro-services, and private
+applications.
 
 This script is not intended to replace DevOps tools like Docker,
 Deployer, Ansible, or CI/CD pipelines.\
@@ -13,10 +13,8 @@ my own workflow** and speed up deployments on fresh servers.
 
 ## 🎯 Purpose
 
-I regularly deploy small Laravel-based bots and utilities to new VPS
-instances.\
-Repeating the same installation steps manually was inefficient and prone
-to human error.
+I regularly deploy small Laravel projects and utilities to new VPS instances.
+Repeating the same installation steps manually was inefficient and prone to human error.
 
 This script automates:
 
@@ -105,8 +103,8 @@ For production or team environments, consider:
 
 ## 🧩 Why I Built This Script
 
-Because I kept deploying the same kind of Laravel bots to VPS servers
-again and again.\
+Because I kept deploying the same kind of Laravel projects to VPS
+servers again and again.\
 Typing 20--30 commands each time was a waste of time.
 
 This script helps me:
