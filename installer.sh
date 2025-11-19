@@ -151,6 +151,10 @@ run_migrations() {
   php artisan migrate --force || warn "Migration warning."
 }
 
+run_seeders() {
+  php artisan db:seed --force || warn "Seeder warning."
+}
+
 # ---------- Nginx ----------
 create_nginx_conf() {
   NGINX_FILE="/etc/nginx/sites-available/${PROJECT_NAME}.conf"
@@ -269,6 +273,7 @@ main() {
 
   configure_env
   run_migrations
+  run_seeders
   create_nginx_conf
   fix_permissions
   install_ssl
