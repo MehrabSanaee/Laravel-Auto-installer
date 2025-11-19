@@ -1,123 +1,131 @@
-# Laravel VPS Auto Installer  
-A lightweight, opinionated deployment script built for **my personal Laravel projects**, especially small bots and utility services.
+# Laravel VPS Auto Installer
 
-This script is **not** intended to replace full deployment tools or CI/CD pipelines.  
-Its purpose is simple: **automate repetitive VPS setup steps** I kept doing for my own Laravel-based projects.
+A lightweight, opinionated deployment script built for **my personal
+Laravel projects**, especially small bots, micro-tools, and private
+services.
 
----
+This script is not intended to replace DevOps tools like Docker,
+Deployer, Ansible, or CI/CD pipelines.\
+It exists for one reason: **to automate repetitive VPS setup tasks for
+my own workflow** and speed up deployments on fresh servers.
 
-## 🎯 Project Purpose
+------------------------------------------------------------------------
 
-I frequently deploy small Laravel bots and private tools to fresh VPS instances.  
-Repeating the same steps every time was inefficient:
+## 🎯 Purpose
 
-- Installing PHP & extensions  
-- Installing / configuring Nginx  
-- Setting up SSL  
-- Creating databases  
-- Cloning projects  
-- Running Composer, migrations, permissions, etc.  
+I regularly deploy small Laravel-based bots and utilities to new VPS
+instances.\
+Repeating the same installation steps manually was inefficient and prone
+to human error.
 
-This script was built to automate exactly those tasks — nothing more, nothing less.
+This script automates:
 
-It’s optimized for **speed, repeatability, and convenience**, not for complex production environments.
+-   PHP installation (multiple versions supported)
+-   Nginx installation and configuration
+-   SSL setup (DNS-validated)
+-   MySQL installation and database creation
+-   Creating or cloning a Laravel project
+-   Running Composer
+-   Generating a clean and safe `.env`
+-   Running migrations and seeders
+-   Setting proper permissions
 
----
+Designed for **quick, personal deployments**, not full enterprise
+environments.
+
+------------------------------------------------------------------------
 
 ## ⚙️ Features
 
-- PHP version selection (8.0–8.3)
-- Automatic installation of PHP-FPM, Nginx, and MySQL
-- Basic internet connectivity check
-- Safe handling of existing nginx configs (no accidental overwrite)
-- DNS validation before issuing SSL certificates
-- Clone an existing Laravel repository or create a new one
-- Safe `.env` updater (no messy regex replacement)
-- Automatic migrations and seeders
-- Nginx configuration with proper PHP-FPM socket
-- Optional phpMyAdmin installation (for personal use only)
-- Limited rollback (restores configs and removes incomplete projects)
+-   PHP version selector (8.0--8.3)
+-   Automated installation: PHP-FPM, Nginx, MySQL
+-   Internet connectivity check
+-   Safe Nginx configuration (no accidental overwrites)
+-   DNS verification before issuing SSL certificates
+-   Create or clone Laravel projects
+-   Safe `.env` key/value management
+-   Automatic migrations & seeders
+-   Optional phpMyAdmin installation
+-   Limited rollback for incomplete installs
 
----
+------------------------------------------------------------------------
 
 ## 🚀 Usage
 
-```bash
+``` bash
 sudo bash installer.sh
-You will be prompted to:
+```
 
-Choose between creating a new Laravel project or cloning a repo
+The script will interactively guide you through:
 
-Provide domain name
+-   Creating a new Laravel project or cloning a Git repo\
+-   Setting a domain name\
+-   Enabling or skipping MySQL\
+-   Enabling or skipping SSL\
+-   Selecting PHP version\
+-   Optional phpMyAdmin setup
 
-Select PHP version
+------------------------------------------------------------------------
 
-Enable or skip MySQL setup
+## ⚠️ Notes & Limitations
 
-Enable or skip SSL
+This script is intentionally scoped for **personal projects**.
 
-Optionally install phpMyAdmin
+-   Works best on a clean VPS (Ubuntu/Debian)
+-   phpMyAdmin installation via apt is for personal/light use only
+-   Rollback is limited to restoring Nginx config and removing
+    incomplete directories
+-   Not suitable for multi-project or multi-domain production servers
+-   Not a replacement for professional DevOps tooling
 
-🛡️ Important Notes & Limitations
-This script is intentionally designed for personal use, not enterprise deployments.
+For production or team environments, consider:
 
-It assumes a relatively clean VPS (Ubuntu/Debian)
+-   Modularizing the script\
+-   Improving logging\
+-   Adding backup/snapshot logic\
+-   Adding non-interactive flags\
+-   Integrating with CI/CD
 
-phpMyAdmin is installed via apt, which is fine for personal use but not ideal for production
+------------------------------------------------------------------------
 
-SSL is only attempted if the domain resolves to the server
+## 📁 Deployment Process Overview
 
-Rollback is limited (restores configs and deletes incomplete project directory)
+    1. Verify root access + internet connectivity
+    2. Add PHP repository
+    3. Install PHP, Nginx, MySQL
+    4. Create or clone Laravel project
+    5. Generate .env safely
+    6. Run migrations / seeders
+    7. Configure Nginx
+    8. Validate DNS → generate SSL certificate
+    9. Optional phpMyAdmin installation
+    10. Output final URLs and status
 
-Not designed for multi-tenant or shared hosting environments
+------------------------------------------------------------------------
 
-Not a substitute for Docker, Ansible, or CI/CD pipelines
+## 🧩 Why I Built This Script
 
-If you plan to adapt it for team use or production-critical systems, consider:
+Because I kept deploying the same kind of Laravel bots to VPS servers
+again and again.\
+Typing 20--30 commands each time was a waste of time.
 
-Making the script modular
+This script helps me:
 
-Improving logging
+-   Deploy much faster\
+-   Keep deployments consistent\
+-   Reduce mistakes\
+-   Spend more time coding instead of configuring
 
-Adding backup/snapshot steps
+------------------------------------------------------------------------
 
-Handling multi-instance Nginx setups
+## 📄 License
 
-Adding non-interactive flags and configuration profiles
+MIT --- free to use, modify, and adapt.
 
-📁 Deployment Flow Overview
-markdown
-Copy code
-1. Verify root + internet connectivity
-2. Add PHP repository
-3. Install PHP, Nginx, MySQL (optional)
-4. Create or clone Laravel project
-5. Generate .env safely
-6. Run migrations and seeders
-7. Create Nginx configuration
-8. Validate DNS → issue SSL certificate
-9. Install phpMyAdmin (optional)
-10. Finish and output access URLs
-🧩 Why I Created This Script
-This wasn’t meant to be a public utility at first.
-It started as a tool to speed up my own workflow:
+------------------------------------------------------------------------
 
-Deploying bots quickly
+## 🤝 Contributing
 
-Standardizing my VPS setups
-
-Avoiding copy-pasting dozens of commands
-
-Minimizing human errors
-
-Keeping small side projects easy to maintain
-
-After refining it through several deployments, it became stable enough to share.
-
-📄 License
-MIT
-Feel free to use, modify, and adapt it as you wish.
-
-🤝 Contributing
-Contributions, improvements, and suggestions are welcome —
-just keep in mind that the script is intentionally scoped for simple personal deployments, not enterprise automation.
+Contributions and improvements are welcome.\
+Just note that the script's core purpose is to remain a **simple,
+personal deployment helper for small Laravel projects**.
