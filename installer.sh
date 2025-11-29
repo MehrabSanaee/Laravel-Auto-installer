@@ -207,7 +207,11 @@ run_seeders() {
 # --------------------------- Nginx ---------------------------
 
 create_nginx_conf() {
-  NGINX_FILE="/etc/nginx/sites-available/${PROJECT_NAME}.conf"
+  # Create empty phpmyadmin snippet first to avoid nginx config errors
+  mkdir -p /etc/nginx/snippets
+  touch /etc/nginx/snippets/phpmyadmin.conf
+  
+  local NGINX_FILE="/etc/nginx/sites-available/${PROJECT_NAME}.conf"
 
   if [[ -f "$NGINX_FILE" ]]; then
     err "Nginx config already exists: $NGINX_FILE"
@@ -384,12 +388,6 @@ main() {
     clone_project
   fi
 
-  configure_env
-  run_migrations
-  run_seeders
-  create_nginx_conf
-  install_ssl
-
   # Ask about phpMyAdmin but install securely from upstream if chosen
   INSTALL_PMA=$(ask "Install phpMyAdmin (secure upstream)? (y/n)" "n")
   if [[ "$INSTALL_PMA" =~ ^[Yy]$ ]]; then
@@ -405,7 +403,15 @@ main() {
     fi
 
     PMA_ALLOW_IP=$(ask "Restrict phpMyAdmin access to single IP? (enter IP or leave empty)" "")
+  fi
 
+  configure_env
+  run_migrations
+  run_seeders
+  create_nginx_conf
+  install_ssl
+
+  if [[ "$INSTALL_PMA" =~ ^[Yy]$ ]]; then
     install_phpmyadmin_secure
   else
     log "Skipping phpMyAdmin installation as requested."
