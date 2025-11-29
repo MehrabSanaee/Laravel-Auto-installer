@@ -1,177 +1,129 @@
-# 🚀 Laravel Auto Deploy Script
+# Laravel VPS Auto Installer
 
-A professional automation script for deploying Laravel applications on Ubuntu server with Nginx, PHP, MySQL, and SSL.
+A lightweight, opinionated deployment script built for **my personal
+Laravel projects**, especially small tools, micro-services, and private
+applications.
 
-![Laravel Auto Deploy](https://img.shields.io/badge/Laravel-Auto%20Deploy-FF2D20?style=for-the-badge&logo=laravel)
-![Ubuntu](https://img.shields.io/badge/Ubuntu-20.04%2F22.04-E95420?style=for-the-badge&logo=ubuntu)
-![Nginx](https://img.shields.io/badge/Nginx-1.18%2B-009639?style=for-the-badge&logo=nginx)
+This script is not intended to replace DevOps tools like Docker,
+Deployer, Ansible, or CI/CD pipelines.\
+It exists for one reason: **to automate repetitive VPS setup tasks for
+my own workflow** and speed up deployments on fresh servers.
 
-## ✨ Features
+------------------------------------------------------------------------
 
-- ✅ **Automatic Laravel Installation** (new project or from Git repository)
-- 🌐 **Auto Nginx Configuration** with virtual host
-- 🔒 **Free SSL Setup** with Certbot (Let's Encrypt)
-- 🗄️ **Automatic MySQL Database Creation**
-- 🐘 **Multiple PHP Version Support** (8.0, 8.1, 8.2, 8.3)
-- 📦 **Composer and Dependency Installation**
-- 🔧 **Automatic .env File Configuration**
-- 👮 **Proper Permission Setup**
-- 🎨 **Colorful Interactive Interface**
+## 🎯 Purpose
 
-## 🛠 Prerequisites
+I regularly deploy small Laravel projects and utilities to new VPS instances.
+Repeating the same installation steps manually was inefficient and prone to human error.
 
-- Ubuntu Server 20.04 or 22.04
-- Root or sudo access
-- Valid domain name (for SSL)
+This script automates:
 
-## 🚀 Quick Start
+-   PHP installation (multiple versions supported)
+-   Nginx installation and configuration
+-   SSL setup (DNS-validated)
+-   MySQL installation and database creation
+-   Creating or cloning a Laravel project
+-   Running Composer
+-   Generating a clean and safe `.env`
+-   Running migrations and seeders
+-   Setting proper permissions
 
-```bash
-# Download the script
-wget https://raw.githubusercontent.com/MehrabSanaee/web_server_auto_config/main/installer.sh
+Designed for **quick, personal deployments**, not full enterprise
+environments.
 
-# Make executable
-chmod +x installer.sh
+------------------------------------------------------------------------
 
-# Run the script
-./installer.sh
+## ⚙️ Features
+
+-   PHP version selector (8.0--8.3)
+-   Automated installation: PHP-FPM, Nginx, MySQL
+-   Internet connectivity check
+-   Safe Nginx configuration (no accidental overwrites)
+-   DNS verification before issuing SSL certificates
+-   Create or clone Laravel projects
+-   Safe `.env` key/value management
+-   Automatic migrations & seeders
+-   Optional phpMyAdmin installation
+-   Limited rollback for incomplete installs
+
+------------------------------------------------------------------------
+
+## 🚀 Usage
+
+``` bash
+sudo bash installer.sh
 ```
 
-## 📖 Complete Guide
+The script will interactively guide you through:
 
-### Method 1: Fresh Laravel Installation
+-   Creating a new Laravel project or cloning a Git repo\
+-   Setting a domain name\
+-   Enabling or skipping MySQL\
+-   Enabling or skipping SSL\
+-   Selecting PHP version\
+-   Optional phpMyAdmin setup
 
-1. Run the script
-2. Choose option `1` for "Fresh Laravel installation"
-3. Enter required information:
-   - Project name
-   - Domain name
-   - Database settings
+------------------------------------------------------------------------
 
-### Method 2: Deploy from Git Repository
+## ⚠️ Notes & Limitations
 
-1. Run the script
-2. Choose option `2` for "Use GitHub repository"
-3. Enter the following information:
-   - Git repository URL
-   - Branch name
-   - Project name
-   - Domain name
-   - Database settings
+This script is intentionally scoped for **personal projects**.
 
-## 🎯 Script Structure
+-   Works best on a clean VPS (Ubuntu/Debian)
+-   phpMyAdmin installation via apt is for personal/light use only
+-   Rollback is limited to restoring Nginx config and removing
+    incomplete directories
+-   Not suitable for multi-project or multi-domain production servers
+-   Not a replacement for professional DevOps tooling
 
-```
-📦 Laravel Auto Deploy
-├── 🔐 Authentication & Access Control
-├── 🖥️ OS Version Detection
-├── 📦 PHP Installation (Multiple Versions)
-├── 🎼 Composer Installation
-├── 🌐 Nginx + MySQL Installation
-├── 🗄️ Database Creation
-├── 📥 Project Cloning
-├── ⚙️ .env Configuration
-├── 🔧 Nginx Configuration
-├── 🔒 SSL Setup
-└── 👮 Permission Management
-```
+For production or team environments, consider:
 
-## ⚙️ Configuration
+-   Modularizing the script\
+-   Improving logging\
+-   Adding backup/snapshot logic\
+-   Adding non-interactive flags\
+-   Integrating with CI/CD
 
-### PHP Version Selection
-The script will ask which PHP version to install:
-- PHP 8.3 ✅
-- PHP 8.2 ✅  
-- PHP 8.1 ✅
-- PHP 8.0 ✅
-- other ✅
+------------------------------------------------------------------------
 
-### Database Settings
-```bash
-Database name: laravel_db
-Database user: laravel_user  
-Database password: ChangeMe123!
-```
+## 📁 Deployment Process Overview
 
-### Directory Structure
-```
-/var/www/your-project-name/
-├── public/
-├── storage/
-├── bootstrap/cache/
-└── .env
-```
+    1. Verify root access + internet connectivity
+    2. Add PHP repository
+    3. Install PHP, Nginx, MySQL
+    4. Create or clone Laravel project
+    5. Generate .env safely
+    6. Run migrations / seeders
+    7. Configure Nginx
+    8. Validate DNS → generate SSL certificate
+    9. Optional phpMyAdmin installation
+    10. Output final URLs and status
 
-## 🔧 Useful Commands After Installation
+------------------------------------------------------------------------
 
-```bash
-# Check service status
-systemctl status nginx
-systemctl status mysql
-systemctl status php8.3-fpm
+## 🧩 Why I Built This Script
 
-# View logs
-tail -f /var/log/nginx/error.log
-journalctl -u nginx -f
+Because I kept deploying the same kind of Laravel projects to VPS
+servers again and again.\
+Typing 20--30 commands each time was a waste of time.
 
-# Project configuration
-cd /var/www/your-project-name
-php artisan config:clear
-php artisan cache:clear
-```
+This script helps me:
 
-## 🛡 Security Features
+-   Deploy much faster\
+-   Keep deployments consistent\
+-   Reduce mistakes\
+-   Spend more time coding instead of configuring
 
-- Separate user creation for each project
-- Proper directory permission setup
-- Disabled default Nginx site
-- Secure PHP-FPM configuration
-
-## ❌ Troubleshooting
-
-### Issue: Permission Errors
-```bash
-# Fix storage permissions
-chmod -R 775 storage bootstrap/cache
-chown -R www-data:your-user /var/www/your-project
-```
-
-### Issue: Database Connection
-```bash
-# Login to MySQL
-mysql -u root -p
-# Manually create user and database
-```
-
-### Issue: SSL Not Working
-- Ensure domain points to server IP
-- Ports 80 and 443 must be open
-
-## 📝 Important Notes
-
-1. **For production** always use a real domain name
-2. After installation, check the `.env` file for additional configurations
-3. Enable OPcache for better performance
-4. Ensure regular database backups
-
-## 🤝 Contributing
-
-If you'd like to contribute to this script:
-
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+------------------------------------------------------------------------
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+MIT --- free to use, modify, and adapt.
 
-**Note**: This script is suitable for both development and production environments, but always test it before using on your main server.
+------------------------------------------------------------------------
 
-<div align="center">
+## 🤝 Contributing
 
-**Built with ❤️ for the Laravel Community**
-
-</div>
+Contributions and improvements are welcome.\
+Just note that the script's core purpose is to remain a **simple,
+personal deployment helper for small Laravel projects**.
