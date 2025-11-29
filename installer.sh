@@ -236,7 +236,11 @@ server {
 EOF
 
   ln -sf "$NGINX_FILE" /etc/nginx/sites-enabled/
-  nginx -t && systemctl reload nginx
+  if ! nginx -t; then
+    err "Nginx configuration test failed - check syntax"
+    exit 1
+  fi
+  systemctl reload nginx
 }
 
 # --------------------------- SSL ---------------------------
@@ -314,7 +318,7 @@ EOF
 
   # Basic auth setup (optional)
   if [[ "${PMA_BASIC_AUTH}" == "y" ]]; then
-    htpasswd -cb /etc/nginx/.pma_pass ${PMA_USER} "${PMA_PASS}"
+    htpasswd -b -c /etc/nginx/.pma_pass ${PMA_USER} "${PMA_PASS}"
     cat >> "$SNIPPET_FILE" <<EOF
 # Basic auth
 auth_basic "Restricted";
