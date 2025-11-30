@@ -286,7 +286,7 @@ install_phpmyadmin_secure() {
   local install_dir="/usr/share/phpmyadmin"
 
   apt-get update -y
-  apt-get install -y wget unzip apache2-utils php${PHP_VERSION}-mbstring php${PHP_VERSION}-json php${PHP_VERSION}-mysqli
+  apt-get install -y wget unzip apache2-utils php${PHP_VERSION}-mbstring php${PHP_VERSION}-mysqli
 
   log "Downloading phpMyAdmin upstream package (latest)..."
   cd /tmp
