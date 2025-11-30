@@ -316,22 +316,19 @@ EOF
   SNIPPET_FILE="/etc/nginx/snippets/phpmyadmin.conf"
   cat > "$SNIPPET_FILE" <<EOF
 # phpMyAdmin snippet - alias: ${alias_path}
-location ${alias_path} {
+location ${alias_path}/ {
+    alias /usr/share/phpmyadmin/;
     index index.php index.html index.htm;
-    root /usr/share/phpmyadmin;
-    try_files \$uri \$uri/ =404;
-}
 
-location ~ ^${alias_path}/.+\.php\$ {
-    root /usr/share/phpmyadmin;
-    include snippets/fastcgi-php.conf;
-    fastcgi_param SCRIPT_FILENAME /usr/share/phpmyadmin\$fastcgi_script_name;
-    fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
-}
+    location ~ \.php\$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME \$request_filename;
+    }
 
-# Basic auth (mandatory)
-auth_basic "Restricted";
-auth_basic_user_file /etc/nginx/.pma_pass;
+    # Basic auth (mandatory)
+    auth_basic "Restricted";
+    auth_basic_user_file /etc/nginx/.pma_pass;
 EOF
 
   htpasswd -b -c /etc/nginx/.pma_pass "${PMA_USER}" "${PMA_PASS}"
@@ -339,16 +336,19 @@ EOF
   if [[ -n "${PMA_ALLOW_IP}" ]]; then
     validate_ip "$PMA_ALLOW_IP"
     cat >> "$SNIPPET_FILE" <<EOF
-# Allow specific IP only
-allow ${PMA_ALLOW_IP};
-deny all;
+    # Allow specific IP only
+    allow ${PMA_ALLOW_IP};
+    deny all;
 EOF
   fi
+
+  echo "}" >> "$SNIPPET_FILE"
 
   nginx -t && systemctl reload nginx
   log "phpMyAdmin installed at: ${alias_path} (mapped to /usr/share/phpmyadmin)"
   log "Basic auth enabled for phpMyAdmin user: ${PMA_USER}"
 }
+
 
 # --------------------------- MAIN ---------------------------
 
